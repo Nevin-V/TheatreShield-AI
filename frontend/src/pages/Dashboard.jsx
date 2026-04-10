@@ -61,8 +61,6 @@ export default function Dashboard() {
     }
   }, []);
 
-  const [isSynthetic, setIsSynthetic] = useState(false);
-
   const captureEvidence = () => {
     if (!videoRef.current || !canvasRef.current) return null;
     
@@ -115,37 +113,24 @@ export default function Dashboard() {
     }
   };
 
+  const [videoError, setVideoError] = useState(false);
+
   const handleVideoUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
       const url = URL.createObjectURL(file);
       setVideoSrc(url);
       setVideoError(false);
-      setIsSynthetic(false);
     }
   };
 
-  const [videoError, setVideoError] = useState(false);
-  const FALLBACK_VIDEOS = [
-    'https://v.pexels.com/video-files/8267262/8267262-hd_1920_1080_25fps.mp4', // Clear Piracy Scenario
-    'https://v.pexels.com/video-files/3825553/3825553-uhd_2560_1440_30fps.mp4', // Realistic Cinema
-    'https://v.pexels.com/video-files/4255513/4255513-uhd_2732_1440_25fps.mp4'  // Cinema Audience
-  ];
-  const [currentVideoIdx, setCurrentVideoIdx] = useState(0);
-
   const handleVideoError = () => {
-    console.warn("Video load failed. Switching to fallback...");
-    if (isSynthetic && currentVideoIdx < FALLBACK_VIDEOS.length - 1) {
-      const nextIdx = currentVideoIdx + 1;
-      setCurrentVideoIdx(nextIdx);
-      setVideoSrc(FALLBACK_VIDEOS[nextIdx]);
-    } else {
-      setVideoError(true);
-    }
+    console.warn("Video load failed.");
+    setVideoError(true);
   };
 
   const detectFrame = async () => {
-    if (canvasRef.current && model && (isSynthetic || (videoRef.current && !videoRef.current.paused))) {
+    if (canvasRef.current && model && (videoRef.current && !videoRef.current.paused)) {
       const startTime = performance.now();
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
@@ -162,27 +147,6 @@ export default function Dashboard() {
       
       const threatClasses = ['cell phone', 'remote', 'handbag', 'book', 'tablet', 'laptop', 'backpack', 'suitcase', 'monitor', 'tv'];
       
-      // SMART SIMULATION: If no device is found but a person is, place the mock box near the person's hand/chest
-      if (isSynthetic && predictions.filter(p => threatClasses.includes(p.class)).length === 0) {
-        const personMatch = predictions.find(p => p.class === 'person');
-        if (personMatch) {
-          const [px, py, pw, ph] = personMatch.bbox;
-          // Place mock phone near the middle-right of the person's bounding box (common hand position)
-          predictions.push({
-            bbox: [px + pw * 0.5, py + ph * 0.3, pw * 0.3, ph * 0.35],
-            class: 'cell phone',
-            score: 0.98
-          });
-        } else {
-          // Fallback if no person is even found
-          predictions.push({
-             bbox: [canvas.width * 0.4, canvas.height * 0.4, 85, 140],
-             class: 'cell phone',
-             score: 0.95
-          });
-        }
-      }
-
       // Object-cover scaling math
       const videoRatio = video ? video.videoWidth / video.videoHeight : 1;
       const canvasRatio = canvas.width / canvas.height;
@@ -389,7 +353,7 @@ export default function Dashboard() {
             )}
           </div>
 
-            <div className={`relative flex-1 bg-black overflow-hidden flex items-center justify-center ${isSynthetic ? 'cursor-crosshair' : ''}`}>
+            <div className="relative flex-1 bg-black overflow-hidden flex items-center justify-center">
               {/* Telemetry Bar */}
               <div className="absolute top-0 left-0 right-0 z-40 bg-black/60 backdrop-blur px-4 py-2 flex items-center justify-between border-b border-white/5">
                 <div className="flex gap-4 items-center">
@@ -418,83 +382,32 @@ export default function Dashboard() {
                  <div className="text-center p-8 border-2 border-dashed border-gray-700/50 rounded-2xl w-full max-w-sm absolute z-20">
                     <Video className="w-12 h-12 text-gray-600 mx-auto mb-4" />
                     <p className="text-gray-300 font-medium mb-1">No video feed detected.</p>
-                    <p className="text-gray-500 text-sm mb-6">Select a demo clip or use our AI test feed.</p>
+                    <p className="text-gray-500 text-sm mb-6">Select a local video file to begin forensic analysis.</p>
                     <div className="flex flex-col gap-3">
                       <label className="cursor-pointer inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 px-6 py-3 rounded-lg font-bold transition-all hover:scale-105 shadow-xl hover:shadow-indigo-500/20">
-                         <Upload className="w-5 h-5" /> Local Simulation
+                         <Upload className="w-5 h-5" /> Load Security Footage
                          <input type="file" accept="video/mp4,video/webm" className="hidden" onChange={handleVideoUpload} />
                       </label>
-                      <button 
-                        onClick={() => { 
-                          setIsSynthetic(true); 
-                          setVideoError(false);
-                          setCurrentVideoIdx(0);
-                          setActiveCamera('Forensic-AI-Test');
-                          // Using high-fidelity theater piracy footage for demo
-                          setVideoSrc(FALLBACK_VIDEOS[0]); 
-                          setTimeout(() => detectFrame(), 200);
-                        }}
-                        className="inline-flex items-center justify-center gap-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 px-6 py-3 rounded-lg font-bold transition-all border border-red-500/30"
-                      >
-                         <ShieldAlert className="w-5 h-5" /> Run Synthetic AI Threat Test
-                      </button>
                     </div>
                  </div>
               ) : (
               <>
-                {isSynthetic ? (
-                  <video 
-                    ref={videoRef}
-                    src={videoSrc}
-                    autoPlay
-                    muted
-                    loop
-                    onPlay={handleVideoPlay}
-                    onError={handleVideoError}
-                    crossOrigin="anonymous"
-                    className="absolute inset-0 w-full h-full object-cover z-10 opacity-60 contrast-125 saturate-50 mt-1"
-                  />
-                ) : (
-                  <video 
-                    ref={videoRef}
-                    src={videoSrc}
-                    autoPlay
-                    muted
-                    loop
-                    controls
-                    onPlay={handleVideoPlay}
-                    onError={handleVideoError}
-                    crossOrigin="anonymous"
-                    className="absolute inset-0 w-full h-full object-cover z-10 opacity-70 mix-blend-screen"
-                  />
-                )}
-                
-                {videoError && isSynthetic && (
-                  <div className="absolute inset-0 z-12 bg-gray-900 flex flex-col items-center justify-center text-center p-6">
-                    <AlertTriangle className="w-10 h-10 text-yellow-500 mb-2" />
-                    <p className="text-sm text-gray-400">Stream Source Blocked by Host CORS</p>
-                    <p className="text-[10px] text-gray-600 mt-1">AI Detection will continue in Simulation Mode</p>
-                  </div>
-                )}
-                
-                {/* Neural Scanline Overlay for Demo Effect */}
-                {isSynthetic && (
-                  <div className="absolute inset-0 z-15 pointer-events-none opacity-20 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%]"></div>
-                )}
-
-                {/* Evidence Capture Flash Overlay */}
-                {evidenceFlash && (
-                  <div className="absolute inset-0 z-50 bg-white/40 animate-out fade-out duration-300 pointer-events-none" />
-                )}
-
-                <canvas 
-                  ref={canvasRef}
-                  className="absolute inset-0 w-full h-full z-20 pointer-events-none object-cover"
+                <video 
+                  ref={videoRef}
+                  src={videoSrc}
+                  autoPlay
+                  muted
+                  loop
+                  controls
+                  onPlay={handleVideoPlay}
+                  onError={handleVideoError}
+                  crossOrigin="anonymous"
+                  className="absolute inset-0 w-full h-full object-cover z-10 opacity-70 mix-blend-screen"
                 />
                 
                 <div className="absolute top-4 right-4 z-30 flex items-center gap-2 bg-black/60 px-3 py-1.5 rounded-md backdrop-blur border border-white/10 shadow-lg">
                   <Maximize className="w-3 h-3 text-red-500" />
-                  <span className="text-[10px] font-mono text-white uppercase tracking-[0.2em]">{isSynthetic ? 'PIRACY SIMULATION ACTIVE' : 'SECURE MONITORING ACTIVE'}</span>
+                  <span className="text-[10px] font-mono text-white uppercase tracking-[0.2em]">SECURE MONITORING ACTIVE</span>
                 </div>
               </>
             )}
@@ -521,11 +434,6 @@ export default function Dashboard() {
               <ShieldAlert className="w-4 h-4 text-red-500" />
               <h2 className="font-semibold text-gray-200 uppercase tracking-widest text-[10px]">High Priority Intelligence</h2>
             </div>
-            {isSynthetic && (
-               <button onClick={() => setIsSynthetic(false)} className="text-[10px] bg-red-500/20 text-red-400 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/30 transition-colors uppercase font-bold">
-                 Stop Test
-               </button>
-            )}
           </div>
           
           <div className="p-3 flex-1 flex flex-col justify-center bg-gradient-to-b from-gray-900 to-[#0c0c0c] border-b border-gray-800 overflow-hidden min-h-[220px]">
